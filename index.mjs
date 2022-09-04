@@ -75,8 +75,7 @@ export const interval = ms => {
 export const tap = fn =>
     async function* (src) {
         for await (const v of src) {
-            fn(v)
-            yield v
+            yield fn(v), v
         }
     }
 
@@ -99,6 +98,23 @@ export const takeLast = n =>
         yield* buf
     }
 
+export const skip = n =>
+    async function* (src) {
+        let i = 0
+        for await (const v of src) {
+            if (i++ >= n) yield v
+        }
+    }
+
+export const skipLast = n =>
+    async function* (src) {
+        const buf = []
+        for await (const v of src) {
+            buf.push(v)
+            if (buf.length > n) yield buf.shift()
+        }
+    }
+
 export const first = (fn = v => v) => pipe(filter(fn), take(1))
 
 export const last = (fn = v => v) => pipe(filter(fn), takeLast(1))
@@ -116,5 +132,18 @@ export const filter = fn =>
         let i = 0
         for await (const v of src) {
             if (fn(v, i++)) yield v
+        }
+    }
+
+export const scan = (fn, init) =>
+    async function* (src) {
+        let acc = init
+        let i = 0
+        for await (const v of src) {
+            if (i++ === 0 && init === undefined) {
+                yield (acc = v)
+            } else {
+                yield (acc = fn(acc, v, i))
+            }
         }
     }
