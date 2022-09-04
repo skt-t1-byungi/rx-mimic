@@ -6,7 +6,7 @@ export const pipe = (...fns) =>
     )
 
 export const from = src => {
-    if (typeof src?.subscribe === 'function') {
+    if (src.isObservable) {
         return src
     } else if (typeof src?.then === 'function') {
         src = (async function* () {
@@ -16,6 +16,7 @@ export const from = src => {
         src = Array.from(src)
     }
     return {
+        isObservable: true,
         pipe(...operators) {
             return from(pipe(...operators)(src))
         },
@@ -59,17 +60,44 @@ export const fromEvent = (mitt, name) =>
 
 export const interval = ms => {
     let id
-    return fromEvent(
-        {
-            on(_, fn) {
-                id = setInterval(fn, ms)
-            },
-            off() {
-                clearInterval(id)
-            },
+    return fromEvent({
+        on(_, push) {
+            id = setInterval(push, ms)
         },
-        'tick'
-    )
+        off() {
+            clearInterval(id)
+        },
+    })
+}
+
+export const concat = (...sources) =>
+    defer(async function* () {
+        for (const src of sources) {
+            yield* from(src)
+        }
+    })
+
+export const combineLatest = (...sources) => {
+    const VOID = {}
+    const buf = Array(sources.length).fill(VOID)
+    const offs = []
+    return fromEvent({
+        on(_, push) {
+            sources.forEach((src, i) => {
+                offs.push(
+                    from(src).subscribe(v => {
+                        buf[i] = v
+                        if (buf.every(v => v !== VOID)) {
+                            push(buf)
+                        }
+                    })
+                )
+            })
+        },
+        off() {
+            offs.forEach(fn => fn())
+        },
+    })
 }
 
 export const tap = fn =>
