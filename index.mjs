@@ -1,74 +1,168 @@
-export const pipe = (...fns) =>
-    fns.reduce(
+const stoppable = generator => source => {
+    let stopped = false
+    let defer = null
+    const it = generator(source)
+    return {
+        [Symbol.asyncIterator]() {
+            return this
+        },
+        next(value) {
+            return withDefer(it.next(value))
+        },
+        return(value) {
+            return withDefer(it.return(value))
+        },
+        throw(error) {
+            return withDefer(it.throw(error))
+        },
+        stop() {
+            stopped = true
+            it.return() // notifies source
+            defer?.resolve({ done: true }) // notifies sink
+            defer = null
+        },
+    }
+    async function withDefer(promise) {
+        try {
+            return await Promise.race([promise, (defer = deferredPromise()).promise])
+        } finally {
+            if (!stopped) {
+                defer.resolve()
+                defer = null
+            }
+        }
+    }
+}
+
+const deferredPromise = () => {
+    let resolve
+    let reject
+    const promise = new Promise((res, rej) => {
+        resolve = res
+        reject = rej
+    })
+    return { resolve, reject, promise }
+}
+
+class RawObservable {
+    #gen
+    constructor(generator) {
+        this.#gen = generator
+    }
+    pipe(...operators) {
+        return new RawObservable(pipe(this.#gen, ...operators))
+    }
+    subscribe(observer) {
+        return { unsubscribe: consume(tap(observer)(this.#gen())).stop }
+    }
+}
+
+const consume = stoppable(async function* (src) {
+    for await (const _ of src);
+})
+
+export class Observable extends RawObservable {
+    constructor(factory) {
+        super(async function* () {
+            const buf = []
+            let done = false
+            let error = null
+            let defer = null
+            const resolve = () => {
+                defer?.resolve()
+                defer = null
+            }
+            const cleanup = factory({
+                next(val) {
+                    buf.push(val)
+                    resolve()
+                },
+                error(err) {
+                    done = true
+                    error = err
+                    resolve()
+                },
+                complete() {
+                    done = true
+                    resolve()
+                },
+            })
+            try {
+                while (!done) {
+                    if (buf.length) {
+                        yield buf.shift()
+                    } else {
+                        await (defer = deferredPromise()).promise
+                        if (error) {
+                            throw error
+                        }
+                    }
+                }
+            } finally {
+                cleanup?.()
+            }
+        })
+    }
+}
+
+export const noop = () => {}
+
+export const pipe = (...functions) =>
+    functions.reduce(
         (prev, fn) =>
             (...args) =>
                 fn(prev(...args))
     )
 
-export const from = src => {
-    if (src.isObservable) {
+export const from = source => {
+    const src = source
+    if (src instanceof RawObservable) {
         return src
-    } else if (typeof src?.then === 'function') {
-        src = (async function* () {
+    }
+    if (typeof src?.then === 'function') {
+        return new RawObservable(async function* () {
             yield await src
-        })()
-    } else if (!Array.isArray(src) && typeof src.length === 'number') {
-        src = Array.from(src)
+        })
     }
-    return {
-        isObservable: true,
-        pipe(...operators) {
-            return from(pipe(...operators)(src))
-        },
-        subscribe(fn) {
-            const iter = tap(fn)(src)
-            ;(async () => {
-                for await (const _ of iter);
-            })()
-            return () => {
-                iter.return()
-            }
-        },
-    }
+    return new RawObservable(async function* () {
+        if (!Array.isArray(src) && typeof src.length === 'number') {
+            src = Array.from(src)
+        }
+        yield* src
+    })
 }
 
-export const defer = fn => from(fn())
+export const defer = factory => from(factory())
 
 export const of = (...args) => from(args)
 
-export const fromEvent = (mitt, name) =>
-    defer(async function* () {
-        let resolve
-        const buf = []
-        const push = ev => {
-            if (resolve) {
-                resolve(ev)
-                resolve = null
-            } else {
-                buf.push(ev)
-            }
-        }
-        ;(mitt.addEventListener || mitt.addListener || mitt.on).call(mitt, name, push)
-        try {
-            while (true) {
-                yield await (buf.length ? buf.shift() : new Promise(r => (resolve = r)))
-            }
-        } finally {
-            ;(mitt.removeEventListener || mitt.removeListener || mitt.off).call(mitt, name, push)
+export const fromEvent = (eventEmitter, eventName) =>
+    new Observable(sub => {
+        const m = eventEmitter
+        const listener = ev => sub.next(ev)
+        ;(m.addEventListener || m.addListener || m.on).call(m, eventName, listener)
+        return () => {
+            ;(m.removeEventListener || m.removeListener || m.off).call(m, eventName, listener)
         }
     })
 
-export const interval = ms => {
-    let id
-    return fromEvent({
-        on(_, push) {
-            id = setInterval(push, ms)
-        },
-        off() {
-            clearInterval(id)
-        },
+export const timer = (ms, intervalTime) =>
+    concat(
+        new Observable(sub => {
+            const id = setTimeout(sub.next, ms, 0)
+            return () => clearTimeout(id)
+        }),
+        intervalTime ? interval(intervalTime) : EMPTY
+    )
+
+export const EMPTY = new RawObservable(async function* () {})
+
+export const interval = ms =>
+    new Observable(sub => {
+        let i = 0
+        const id = setInterval(() => sub.next(i++), ms)
+        return () => clearInterval(id)
     })
-}
 
 export const concat = (...sources) =>
     defer(async function* () {
@@ -77,33 +171,53 @@ export const concat = (...sources) =>
         }
     })
 
-export const combineLatest = (...sources) => {
-    const VOID = {}
-    const buf = Array(sources.length).fill(VOID)
-    const offs = []
-    return fromEvent({
-        on(_, push) {
-            sources.forEach((src, i) => {
-                offs.push(
-                    from(src).subscribe(v => {
-                        buf[i] = v
+export const combineLatest = (...sources) =>
+    new Observable(sub => {
+        const VOID = Symbol()
+        const buf = Array(sources.length).fill(VOID)
+        const offs = []
+        const cleanup = () => offs.forEach(off => off())
+        let completes = 0
+        sources.forEach((src, i) => {
+            offs.push(
+                from(src).subscribe({
+                    next(value) {
+                        buf[i] = value
                         if (buf.every(v => v !== VOID)) {
-                            push(buf)
+                            sub.next(buf.slice())
                         }
-                    })
-                )
-            })
-        },
-        off() {
-            offs.forEach(fn => fn())
-        },
+                    },
+                    error(err) {
+                        cleanup()
+                        sub.error(err)
+                    },
+                    complete() {
+                        if (++completes === sources.length) {
+                            cleanup()
+                            sub.complete()
+                        }
+                    },
+                }).unsubscribe
+            )
+        })
+        return cleanup
     })
-}
 
-export const tap = fn =>
+export const tap = observer =>
     async function* (src) {
-        for await (const v of src) {
-            yield fn(v), v
+        const ob = observer
+        if (typeof ob === 'function') {
+            ob = { next: ob }
+        }
+        try {
+            for await (const v of src) {
+                ob?.next(v)
+                yield v
+            }
+            ob?.complete?.()
+        } catch (err) {
+            ob?.error?.(err)
+            throw err
         }
     }
 
@@ -153,7 +267,7 @@ export const map = fn =>
         for await (const v of src) yield fn(v, i++)
     }
 
-export const mapTo = v => map(() => v)
+export const mapTo = value => map(() => value)
 
 export const filter = fn =>
     async function* (src) {
