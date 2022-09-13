@@ -1,5 +1,6 @@
 {
-    "name": "@byungi/rx-mini",
+    "name": "@byungi/rx-mimic",
+    "type": "module",
     "scripts": {
         "test": "tap",
         "testw": "tap --watch"
