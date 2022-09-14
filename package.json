@@ -1,12 +1,13 @@
 {
     "name": "@byungi/rx-mimic",
     "type": "module",
+    "main": "lib/index.js",
     "scripts": {
-        "test": "tap",
-        "testw": "tap --watch"
+        "test": "ava",
+        "testw": "ava -w"
     },
-    "dependencies": {
-        "prettier": "^2.7.1",
-        "tap": "^16.3.0"
+    "devDependencies": {
+        "ava": "^4.3.3",
+        "prettier": "^2.7.1"
     }
 }
