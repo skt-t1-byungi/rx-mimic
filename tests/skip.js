@@ -1,18 +1,18 @@
 import test from 'ava'
-import map from '../lib/map.js'
 import of from '../lib/of.js'
+import skip from '../lib/skip.js'
 
-test('map', t =>
+test('skip', t =>
     new Promise(end => {
         const values = []
-        of(1, 2, 3)
-            .pipe(map(x => x * 2))
+        of(1, 2, 3, 4, 5, 6)
+            .pipe(skip(3))
             .subscribe({
-                next(x) {
-                    values.push(x)
+                next(value) {
+                    values.push(value)
                 },
                 complete() {
-                    t.deepEqual(values, [2, 4, 6])
+                    t.deepEqual(values, [4, 5, 6])
                     end()
                 },
                 error: t.log,

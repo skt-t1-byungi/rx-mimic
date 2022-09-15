@@ -7,6 +7,7 @@
         "testw": "ava -w"
     },
     "devDependencies": {
+        "@sinonjs/fake-timers": "^9.1.2",
         "ava": "^4.3.3",
         "prettier": "^2.7.1"
     }

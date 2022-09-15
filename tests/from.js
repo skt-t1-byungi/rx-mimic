@@ -12,6 +12,7 @@ test('array', t =>
                 t.deepEqual(values, [1, 2, 3])
                 end()
             },
+            error: t.log,
         })
     }))
 
@@ -26,6 +27,7 @@ test('arrayLike', t =>
                 t.deepEqual(values, [1, 2, 3])
                 end()
             },
+            error: t.log,
         })
     }))
 
@@ -40,6 +42,7 @@ test('iterable', t =>
                 t.deepEqual(values, [1, 2, 3])
                 end()
             },
+            error: t.log,
         })
     }))
 
@@ -60,6 +63,7 @@ test('asyncIterable', t =>
                 t.deepEqual(values, [1, 2, 3])
                 end()
             },
+            error: t.log,
         })
     }))
 
@@ -74,5 +78,6 @@ test('promise', t =>
                 t.deepEqual(values, [1])
                 end()
             },
+            error: t.log,
         })
     }))

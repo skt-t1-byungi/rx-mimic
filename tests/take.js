@@ -1,20 +1,19 @@
 import test from 'ava'
-import map from '../lib/map.js'
+import take from '../lib/take.js'
 import of from '../lib/of.js'
 
-test('map', t =>
+test('take', t =>
     new Promise(end => {
         const values = []
-        of(1, 2, 3)
-            .pipe(map(x => x * 2))
+        of(1, 2, 3, 4, 5, 6)
+            .pipe(take(3))
             .subscribe({
-                next(x) {
-                    values.push(x)
+                next(value) {
+                    values.push(value)
                 },
                 complete() {
-                    t.deepEqual(values, [2, 4, 6])
+                    t.deepEqual(values, [1, 2, 3])
                     end()
                 },
-                error: t.log,
             })
     }))

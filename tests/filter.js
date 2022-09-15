@@ -1,15 +1,15 @@
 import test from 'ava'
-import map from '../lib/map.js'
+import filter from '../lib/filter.js'
 import of from '../lib/of.js'
 
-test('map', t =>
+test('filter', t =>
     new Promise(end => {
         const values = []
-        of(1, 2, 3)
-            .pipe(map(x => x * 2))
+        of(1, 2, 3, 4, 5, 6)
+            .pipe(filter(value => value % 2 === 0))
             .subscribe({
-                next(x) {
-                    values.push(x)
+                next(value) {
+                    values.push(value)
                 },
                 complete() {
                     t.deepEqual(values, [2, 4, 6])

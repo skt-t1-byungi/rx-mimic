@@ -11,5 +11,6 @@ test('EMPTY', t =>
                 t.pass()
                 end()
             },
+            error: t.log,
         })
     }))

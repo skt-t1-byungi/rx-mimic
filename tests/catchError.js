@@ -21,6 +21,7 @@ test('return observable', t =>
                     t.deepEqual(values, [1, 2, 3])
                     end()
                 },
+                error: t.log,
             })
     }))
 
@@ -42,5 +43,6 @@ test('retry by caught', t =>
                     t.deepEqual(values, [1, 2, 1, 2, 1, 2])
                     end()
                 },
+                error: t.log,
             })
     }))

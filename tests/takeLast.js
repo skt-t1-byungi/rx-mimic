@@ -1,18 +1,18 @@
 import test from 'ava'
-import map from '../lib/map.js'
+import takeLast from '../lib/takeLast.js'
 import of from '../lib/of.js'
 
-test('map', t =>
+test('takeLast', t =>
     new Promise(end => {
         const values = []
-        of(1, 2, 3)
-            .pipe(map(x => x * 2))
+        of(1, 2, 3, 4, 5)
+            .pipe(takeLast(2))
             .subscribe({
-                next(x) {
-                    values.push(x)
+                next(value) {
+                    values.push(value)
                 },
                 complete() {
-                    t.deepEqual(values, [2, 4, 6])
+                    t.deepEqual(values, [4, 5])
                     end()
                 },
                 error: t.log,
