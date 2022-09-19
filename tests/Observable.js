@@ -1,10 +1,10 @@
 import test from 'ava'
-import Observable, { RawObservable } from '../lib/Observable.js'
+import Observable, { AsyncGeneratorObservable } from '../lib/Observable.js'
 
 test('subscribe', t =>
     new Promise(end => {
         const values = []
-        new RawObservable(async function* () {
+        new AsyncGeneratorObservable(async function* () {
             yield 1
             yield 2
             yield 3
@@ -23,7 +23,7 @@ test('unsubscribe', t =>
     new Promise(end => {
         t.plan(2)
         const values = []
-        const subscription = new RawObservable(async function* () {
+        const subscription = new AsyncGeneratorObservable(async function* () {
             try {
                 yield 1
                 t.fail()
