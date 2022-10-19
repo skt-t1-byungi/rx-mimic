@@ -42,8 +42,8 @@ test.serial('creationInterval', async t => {
 
 test.serial('limit buffer size', async t => {
     const values = []
-    interval(20)
-        .pipe(take(5), bufferTime(50, null, 2))
+    interval(2)
+        .pipe(take(5), bufferTime(5, null, 2))
         .subscribe({
             next(value) {
                 values.push(value)
