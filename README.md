@@ -1,3 +1,3 @@
 # @byungi/rx-mimic
 
-A minimal RxJS implementation for learning
+A generator based RxJS implementation for learning
